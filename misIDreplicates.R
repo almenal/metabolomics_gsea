@@ -1,33 +1,51 @@
-# Same as misID_replicates.R but with lower percentages
+library(optparse)
 
-pkgs = c('dplyr', 'ggplot2', 'tidyr', 'patchwork', 'fgsea', 'parallel')
+## Command line arguments 
+option_list = list(
+  make_option(c("--niter"), type="integer", default=200L, 
+              help="number of repetitions to run [default = %default]", metavar="integer"),
+  make_option(c("--outputDir"), type="character", default="./Robjs",
+              help="directory to save output  [default = %default]", metavar="character"),
+  make_option(c("--seed"), type="integer", default=0,  metavar="integer",
+              help="(optional) initial seed for random number generation [default = %default]")
+)
+
+message("Parsing options")
+opt_parser = OptionParser(option_list=option_list);
+options = parse_args(opt_parser);
+
+
+pkgs = c('dplyr', 'ggplot2', 'tidyr', 'patchwork', 'fgsea', 'globaltest', 'parallel')
 for(p in pkgs){
-if(p %in% installed.packages()) suppressPackageStartupMessages(library(p, character.only = TRUE))
+  if(p %in% installed.packages()) suppressPackageStartupMessages(library(p, character.only = TRUE))
   else install.packages(p)
-  
 } 
+
+globaltest::gt.options(trim=TRUE) # To avoid errors when var_names not present
 
 source('scripts/load_data.R')
 source('scripts/utils.R')
 hsa_prefix = " - Homo sapiens \\(human\\)"
 
+dset_metric_combis = expand.grid("dset" = c("su_m", "stev"), 
+                                 "metrics" = names(metrics_pretty))
+gsea_baseline = pbapply::pbapply(dset_metric_combis, 1, function(combi){
+  
+  dset = combi[[1]]; metric = combi[[2]]
+  fun = metrics_with_df[[metric]]
+  dataset = as.data.frame(datasets[[dset]][["data"]])
+  case = datasets[[dset]][["classes"]] == 1
+  
+  stats = fun(dataset, which(case), which(!case))
+  paths = datasets[[dset]][["paths"]]
+  if(min(stats) >= 0) sctype = "pos" else sctype="std"
+  
+  gsea = fgsea::fgseaMultilevel(paths, stats, minSize = 4, eps=1e-20, scoreType=sctype)
+  gsea_df = gsea %>% mutate(dset = dset, metric = metric)
+  return(gsea_df)
+})
 
-gsea_misID_reps = function(K = 100, nProc = 1, percs = seq(0,5,0.1)){
-  if (nProc == 1) fgsea_mis_list_reps = lapply(1:K, gsea_with_misID)
-  else if (nProc != 0){
-    if(nProc >= detectCores()) nProc = detectCores()
-    clus = makeCluster(nProc, "FORK")
-    fgsea_mis_list_reps = pbapply::pblapply(
-      1:K, gsea_with_misID, misID_percs=percs, cl = clus
-    )
-    stopCluster(clus)
-  } else {
-    stop("Invalid nProc")
-  }
-  return( fgsea_mis_list_reps )
-}
-
-gsea_with_misID = function(misID_percs){
+gsea_gt_with_misID = function(misID_percs){
   
   dsets =  c("stev", "su_m")
   combis = expand.grid("p"=misID_percs, "ds"=dsets)
@@ -42,31 +60,19 @@ gsea_with_misID = function(misID_percs){
   metrics_ = lapply(dset_perc_mis, function(y){
     ds = y[["dset"]]
     case = datasets[[ds]][["classes"]] == 1
-    ctrl = datasets[[ds]][["classes"]] == 0
     
     d = y[["df_mis"]]
-    metrics = lapply(setNames(nm = c('snr', 'bws', 'signed_fc')),
-                     function(m) apply(d, 2, get(m), case, ctrl))
-    
-    # metrics[["msd"]] = msd(as.data.frame(d), case, ctrl)
-    ####### DEBUGGING ONLY 
-    metrics[["msd"]] = tryCatch(
-      msd(as.data.frame(d), case, ctrl),
-      error = function(e) {
-        print(paste(ds, "at ", y$p, "% misID has this many dup cols", 
-                    sum(duplicated(colnames(d)))))
-        stop(paste(e, ds, y$p))
-      }
-    )
-    
-    return(list("ds"=y$dset, "p"=y$p, "metrics" = metrics))
+    stats = lapply(setNames(nm = metrics_pretty), function(m) {
+      fun = metrics_with_df[[m]]
+      stats = fun(dataset, which(case), which(!case))
+      return(stats)
+    })
+    return(list("ds"=y$dset, "p"=y$p, "stats" = stats))
   })
   
   fgsea_res = lapply(metrics_, function(z){
-    p = z[["p"]]
-    ds = z[["ds"]]
-    mtr = z[["metrics"]]
-    
+    p = z[["p"]]; ds = z[["ds"]];
+    mtr = z[["stats"]]
     FGSEA = lapply(mtr, function(m){
       if(min(m) >= 0) score_type = 'pos' else score_type = "std"
       res = fgsea::fgseaMultilevel(m,
@@ -80,9 +86,52 @@ gsea_with_misID = function(misID_percs){
       mutate(misID_perc = p, dset = ds)
     
   })
-  return(fgsea_res)
+  
+  gt_res = lapply(dset_perc_mis, function(combi){
+
+    dset = combi[["dset"]]
+    class_labels_num = datasets[[dset]][["classes"]]
+    data_mis = combi[["df_mis"]]
+    globtest_subsets = globaltest::gt(
+      class_labels_num,
+      data_mis,
+      subsets = datasets[[dset]][["paths"]],
+      model = 'logistic'
+      )
+    
+    gt_df = as_tibble(globtest_subsets@result, rownames = 'pathway')
+    return(gt_df)
+    
+  })
+  
+  return(list("gsea" = fgsea_res, "globaltst" = gt_res))
 }
 
-misIDpercs =  c(seq(0, 0.04, 0.01), seq(0.05,0.50,by=0.05))
-gsea_mis01 = gsea_with_misID(misIDpercs)
-done()
+misID_reps = function(K = 100, nProc = 1, percs = seq(0,5,0.1)){
+  if (nProc == 1) fgsea_mis_list_reps = lapply(1:K, gsea_gt_with_misID, misID_percs=percs)
+  else if (nProc != 0){
+    if(nProc >= detectCores()) nProc = detectCores()
+    clus = makeCluster(nProc, "FORK")
+    mis_list_reps = pbapply::pblapply(
+      1:K, gsea_gt_with_misID, misID_percs=percs, cl = clus
+    )
+    stopCluster(clus)
+  } else {
+    stop("Invalid nProc")
+  }
+  return( mis_list_reps )
+}
+
+
+main = function(opts){
+  misIDpercs = c(seq(0, 0.04, 0.01), seq(0.05,0.50,by=0.05))
+  n_iter = opts$niter; seed = opts$seed; outdir = opts$outputDir
+  misID_gsea_gt = misID_reps(K = n_iter, percs = misIDpercs)
+  outDir_noSlash = stringr::str_remove(outdir, "/$")
+  saveRDS(
+    misID_gsea_gt,
+    sprintf("%s/misidentification_replicates_list_%02d.rds", outDir_noSlash, seed)
+  )
+}
+
+main(options)
