@@ -19,7 +19,7 @@ The output files are serialized `.rds` objects saved under `./Robjs/` for easy i
 > **CAUTION:** Parts of this script involve the download of a large scRNA-Seq dataset that is later reduced to pseudobulk data. This can take time and be computationally intensive, which is why all `.rds` are already provided under `./Robjs/`
 
 ```bash 
-Rscript scripts/pre-processing.R --globaltest --gsea --niter 250 --outputDir "./Robjs/misID" --seed 42
+Rscript scripts/pre-processing.R 
 ```
 
 
@@ -28,7 +28,7 @@ Rscript scripts/pre-processing.R --globaltest --gsea --niter 250 --outputDir "./
 To assess the effects of metabolite misidentification on each method, a simulation study was performed in which compounds were replaced by compounds with a similar mass (within 20ppm of the original mass). For example, the KEGG compound C00526 (Deoxyuridine) with mass 228.0746 can be replaced by C09317, with mass 228.0786.
 
 ```bash 
-Rscript misIDreplicates.R
+Rscript misIDreplicates.R --globaltest --gsea --niter 250 --outputDir "./Robjs/misID" --seed 42
 ```
 
 ### 2. Semi-synthetic data simulations
