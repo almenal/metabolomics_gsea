@@ -1,7 +1,4 @@
-# Evaluating Gene Set Analysis methods on metabolomics data
-## GSEA and Globaltest
-
----
+# Evaluating Gene Set Analysis methods on metabolomics data: GSEA and Globaltest
 
 This repository contains scripts and ulitity functions to perform an evaluation of GSEA and Globaltest for metabolomics data.
 
@@ -22,7 +19,7 @@ The output files are serialized `.rds` objects saved under `./Robjs/` for easy i
 > **CAUTION:** Parts of this script involve the download of a large scRNA-Seq dataset that is later reduced to pseudobulk data. This can take time and be computationally intensive, which is why all `.rds` are already provided under `./Robjs/`
 
 ```bash 
-Rscript scripts/pre-processing.R
+Rscript scripts/pre-processing.R --globaltest --gsea --niter 250 --outputDir "./Robjs/misID" --seed 42
 ```
 
 
@@ -69,6 +66,7 @@ Infering pathway activity from a small number of components can be challenging, 
 |Dataset|# Case/Control|# Variables|
 |:---:|:---:|:---:|
 |[Stevens _et al._ (2018)](https://doi.org/10.1007/s11306-018-1393-1)| 332/667 | 352 |
-|[Su _et al._ (2020)](https://doi.org/10.1016/j.cell.2020.10.037)| 254/133 | 223 |
+|[Su _et al._ (2020)](https://doi.org/10.1016/j.cell.2020.10.037) metabolomics| 254/133 | 223 |
+|[Su _et al._ (2020)](https://doi.org/10.1016/j.cell.2020.10.037) transcriptomics| 254/16 | 10,988 |
 
 

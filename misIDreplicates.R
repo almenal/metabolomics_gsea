@@ -4,6 +4,12 @@ library(optparse)
 option_list = list(
   make_option(c("--niter"), type="integer", default=200L, 
               help="number of repetitions to run [default = %default]", metavar="integer"),
+  
+  make_option(c("--globaltest"), type="logical", action = "store_true", default=FALSE, 
+              help="whether to run globaltest  [default = %default]", metavar="logical"),
+  make_option(c("--gsea"), type="logical", action = "store_true", default=FALSE, metavar="logical", 
+              help="whether to run gsea (either this and/or --globaltest must be TRUE) [default = %default]"),
+  
   make_option(c("--outputDir"), type="character", default="./Robjs",
               help="directory to save output  [default = %default]", metavar="character"),
   make_option(c("--seed"), type="integer", default=0,  metavar="integer",
@@ -45,7 +51,7 @@ gsea_baseline = pbapply::pbapply(dset_metric_combis, 1, function(combi){
   return(gsea_df)
 })
 
-gsea_gt_with_misID = function(misID_percs){
+gsea_gt_with_misID = function(misID_percs, opts=NULL){
   
   dsets =  c("stev", "su_m")
   combis = expand.grid("p"=misID_percs, "ds"=dsets)
@@ -57,37 +63,46 @@ gsea_gt_with_misID = function(misID_percs){
     return(list("dset"=ds, "p"=p, "df_mis"=df_mis))
   })
   
-  metrics_ = lapply(dset_perc_mis, function(y){
-    ds = y[["dset"]]
-    case = datasets[[ds]][["classes"]] == 1
+  if (!is.null(opts) && opts$gsea){
     
-    d = y[["df_mis"]]
-    stats = lapply(setNames(nm = metrics_pretty), function(m) {
-      fun = metrics_with_df[[m]]
-      stats = fun(dataset, which(case), which(!case))
-      return(stats)
+    metrics_ = lapply(dset_perc_mis, function(y){
+      ds = y[["dset"]]
+      case = datasets[[ds]][["classes"]] == 1
+      
+      d = y[["df_mis"]]
+      stats = lapply(setNames(nm = metrics_pretty), function(m) {
+        fun = metrics_with_df[[m]]
+        stats = fun(dataset, which(case), which(!case))
+        return(stats)
+      })
+      return(list("ds"=y$dset, "p"=y$p, "stats" = stats))
     })
-    return(list("ds"=y$dset, "p"=y$p, "stats" = stats))
-  })
-  
-  fgsea_res = lapply(metrics_, function(z){
-    p = z[["p"]]; ds = z[["ds"]];
-    mtr = z[["stats"]]
-    FGSEA = lapply(mtr, function(m){
-      if(min(m) >= 0) score_type = 'pos' else score_type = "std"
-      res = fgsea::fgseaMultilevel(m,
-                                   gseaParam = 1,
-                                   pathways = datasets[[ds]][['paths']],
-                                   scoreType = score_type,
-                                   minSize = 4)
-      return(res)
-    }) %>% 
-      bind_rows(.id = "metric") %>% 
-      mutate(misID_perc = p, dset = ds)
     
-  })
+    fgsea_res = lapply(metrics_, function(z){
+      p = z[["p"]]; ds = z[["ds"]];
+      mtr = z[["stats"]]
+      FGSEA = lapply(mtr, function(m){
+        if(min(m) >= 0) score_type = 'pos' else score_type = "std"
+        res = fgsea::fgseaMultilevel(m,
+                                     gseaParam = 1,
+                                     pathways = datasets[[ds]][['paths']],
+                                     scoreType = score_type,
+                                     minSize = 4)
+        return(res)
+      }) %>% 
+        bind_rows(.id = "metric") %>% 
+        mutate(misID_perc = p, dset = ds)
+      
+    })
+    
+  } else {
+    fgsea_res = NULL
+  }
   
-  gt_res = lapply(dset_perc_mis, function(combi){
+  
+  if (!is.null(opts) && opts$globaltest){
+    
+    gt_res = lapply(dset_perc_mis, function(combi){
 
     dset = combi[["dset"]]
     class_labels_num = datasets[[dset]][["classes"]]
@@ -103,19 +118,28 @@ gsea_gt_with_misID = function(misID_percs){
     return(gt_df)
     
   })
+    
+  } else {
+    gt_res = NULL
+  }
+   
+  if(is.null(fgsea_res) & is.null(gt_res)) warning("Returning nothing")
   
   return(list("gsea" = fgsea_res, "globaltst" = gt_res))
 }
 
-misID_reps = function(K = 100, nProc = 1, percs = seq(0,5,0.1)){
+misID_reps = function(K = 100, nProc = 1, percs = seq(0,5,0.1), opts=NULL){
+  
   if (nProc == 1) fgsea_mis_list_reps = lapply(1:K, gsea_gt_with_misID, misID_percs=percs)
   else if (nProc != 0){
+    
     if(nProc >= detectCores()) nProc = detectCores()
     clus = makeCluster(nProc, "FORK")
     mis_list_reps = pbapply::pblapply(
-      1:K, gsea_gt_with_misID, misID_percs=percs, cl = clus
+      1:K, gsea_gt_with_misID, misID_percs=percs, opts = opts, cl = clus
     )
     stopCluster(clus)
+    
   } else {
     stop("Invalid nProc")
   }
@@ -124,10 +148,15 @@ misID_reps = function(K = 100, nProc = 1, percs = seq(0,5,0.1)){
 
 
 main = function(opts){
+  
   misIDpercs = c(seq(0, 0.04, 0.01), seq(0.05,0.50,by=0.05))
   n_iter = opts$niter; seed = opts$seed; outdir = opts$outputDir
-  misID_gsea_gt = misID_reps(K = n_iter, percs = misIDpercs)
+  
+  misID_gsea_gt = misID_reps(K = n_iter, percs = misIDpercs, opts=opts)
+  
   outDir_noSlash = stringr::str_remove(outdir, "/$")
+  if (!dir.exists(outDir_noSlash)) dir.create(outDir_noSlash)
+  
   saveRDS(
     misID_gsea_gt,
     sprintf("%s/misidentification_replicates_list_%02d.rds", outDir_noSlash, seed)
