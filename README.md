@@ -7,6 +7,25 @@ This repository contains scripts and ulitity functions to perform an evaluation 
 
 ## Usage 
 
+### 0. Data pre-processing, cleaning, normalisation, imputation
+
+The pre-processing pipeline is fully implemented in `scripts/pre-processing.R`, the details of which can be found in the Methods section of the thesis.
+The raw data (as provided in the sources, i.e. supplementary information of publications or data repositories like MetaboLights) are provided under `./resources/`, and are the starting point of the pipeline. The steps include:
+
+- Removal of variables with > 50% NAs
+- SVD-based imputation
+- Log-transform
+- Centering, Pareto scaling
+
+The output files are serialized `.rds` objects saved under `./Robjs/` for easy import into later scripts.
+
+> **CAUTION:** Parts of this script involve the download of a large scRNA-Seq dataset that is later reduced to pseudobulk data. This can take time and be computationally intensive, which is why all `.rds` are already provided under `./Robjs/`
+
+```bash 
+Rscript scripts/pre-processing.R
+```
+
+
 ### 1. Metabolite misidentification
 
 To assess the effects of metabolite misidentification on each method, a simulation study was performed in which compounds were replaced by compounds with a similar mass (within 20ppm of the original mass). For example, the KEGG compound C00526 (Deoxyuridine) with mass 228.0746 can be replaced by C09317, with mass 228.0786.
