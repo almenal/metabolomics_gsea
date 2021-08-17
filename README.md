@@ -48,7 +48,7 @@ Our approach is not fully synthetic because we make use of the original values o
 The following code runs 250 simulations using GSEA and Globaltest on a dataset enriched with a signal magnitude of 1 and standard deviation of 0.5. 
 
 ```bash 
-Rscript misIDreplicates.R --globaltest --gsea \
+Rscript simulations_fgsea_gt.R --globaltest --gsea \
   --niter 250 --npaths 1 --seed 0  \
   --signal_mode "add_distrib" --signal_mean 1 --signal_sd 0.5 \
   --outputDir "Robjs/semisynth_"  --output "sims_gt_gsea" 
