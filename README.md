@@ -8,8 +8,8 @@ This repository contains scripts and ulitity functions to perform an evaluation 
 
 The pre-processing pipeline is fully implemented in `scripts/pre-processing.R`, the details of which can be found in the Methods section of the thesis.
 The raw data (as provided in the sources, i.e. supplementary information of publications or data repositories like MetaboLights) are provided under `./resources/`, and are the starting point of the pipeline. The steps include:
-
-- Removal of variables with > 50% NAs
+  
+  - Removal of variables with > 50% NAs
 - SVD-based imputation
 - Log-transform
 - Centering, Pareto scaling
@@ -46,9 +46,9 @@ The following code runs 250 simulations using GSEA and Globaltest on a dataset e
 
 ```bash 
 Rscript simulations_fgsea_gt.R --globaltest --gsea \
-  --niter 250 --npaths 1 --seed 0  \
-  --signal_mode "add_distrib" --signal_mean 1 --signal_sd 0.5 \
-  --outputDir "Robjs/semisynth_"  --output "sims_gt_gsea" 
+--niter 250 --npaths 1 --seed 0  \
+--signal_mode "add_distrib" --signal_mean 1 --signal_sd 0.5 \
+--outputDir "Robjs/semisynth_"  --output "sims_gt_gsea" 
 ```
 
 #### 2.1 Metropolis coefficient
@@ -56,17 +56,18 @@ Rscript simulations_fgsea_gt.R --globaltest --gsea \
 This study uses real pathways, instead of chosing a random set of metabolites, to select the variables to enrich.
 However, it is often the case that only some compounds of a pathway are present in the dataset.
 Infering pathway activity from a small number of components can be challenging, thus our is based on two desired charactersitics:
-
-1. Pathways should have ideally as many compounds in the dataset as possible
+  
+  1. Pathways should have ideally as many compounds in the dataset as possible
 2. The compounds in the pathway should ideally not be part of other pathways, to avoid secondary pathways from being enriched as a side effect
 
 
 ## Datasets
 
 |Dataset|# Case/Control|# Variables|
-|:---:|:---:|:---:|
-|[Stevens _et al._ (2018)](https://doi.org/10.1007/s11306-018-1393-1)| 332/667 | 352 |
-|[Su _et al._ (2020)](https://doi.org/10.1016/j.cell.2020.10.037) metabolomics| 254/133 | 223 |
-|[Su _et al._ (2020)](https://doi.org/10.1016/j.cell.2020.10.037) transcriptomics| 254/16 | 10,988 |
-
-
+  |:---:|:---:|:---:|
+  |[Stevens _et al._ (2018)](https://doi.org/10.1007/s11306-018-1393-1)| 332/667 | 352 |
+  |[Su _et al._ (2020)](https://doi.org/10.1016/j.cell.2020.10.037) metabolomics| 254/133 | 223 |
+  |[Su _et al._ (2020)](https://doi.org/10.1016/j.cell.2020.10.037) transcriptomics| 254/16 | 10,988 |
+  
+  
+  

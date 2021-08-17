@@ -103,26 +103,26 @@ gsea_gt_with_misID = function(misID_percs, opts=NULL){
   if (!is.null(opts) && opts$globaltest){
     
     gt_res = lapply(dset_perc_mis, function(combi){
-
-    dset = combi[["dset"]]
-    class_labels_num = datasets[[dset]][["classes"]]
-    data_mis = combi[["df_mis"]]
-    globtest_subsets = globaltest::gt(
-      class_labels_num,
-      data_mis,
-      subsets = datasets[[dset]][["paths"]],
-      model = 'logistic'
+      
+      dset = combi[["dset"]]
+      class_labels_num = datasets[[dset]][["classes"]]
+      data_mis = combi[["df_mis"]]
+      globtest_subsets = globaltest::gt(
+        class_labels_num,
+        data_mis,
+        subsets = datasets[[dset]][["paths"]],
+        model = 'logistic'
       )
-    
-    gt_df = as_tibble(globtest_subsets@result, rownames = 'pathway')
-    return(gt_df)
-    
-  })
+      
+      gt_df = as_tibble(globtest_subsets@result, rownames = 'pathway')
+      return(gt_df)
+      
+    })
     
   } else {
     gt_res = NULL
   }
-   
+  
   if(is.null(fgsea_res) & is.null(gt_res)) warning("Returning nothing")
   
   return(list("gsea" = fgsea_res, "globaltst" = gt_res))
